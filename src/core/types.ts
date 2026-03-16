@@ -74,7 +74,7 @@ export interface SkillDefinition {
 }
 
 // LLM Provider types
-export type LLMProvider = "anthropic" | "deepseek" | "groq";
+export type LLMProvider = "anthropic" | "deepseek" | "groq" | "doubao";
 
 // Configuration
 export interface AgentConfig {
@@ -82,6 +82,7 @@ export interface AgentConfig {
   anthropicApiKey: string;
   deepseekApiKey: string;
   groqApiKey: string;
+  doubaoApiKey: string;
   agentName: string;
   workspaceDir: string;
   maxToolDepth: number;

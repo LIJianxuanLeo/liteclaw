@@ -4,7 +4,7 @@ A lightweight, open-source AI agent framework inspired by [OpenClaw](https://git
 
 ## Features
 
-- **Multi-LLM Support** — Switch between Anthropic Claude, DeepSeek (free), and Groq (free) with one env var
+- **Multi-LLM Support** — Switch between Doubao (free), DeepSeek, Groq (free), and Anthropic Claude with one env var
 - **Agentic Tool Loop** — The agent reasons step-by-step, calling tools iteratively until the task is complete
 - **4 Built-in Tools** — Shell execution, file operations, web access, persistent memory
 - **Web UI** — React-based chat interface with real-time streaming via WebSocket
@@ -18,7 +18,7 @@ A lightweight, open-source AI agent framework inspired by [OpenClaw](https://git
 ### Prerequisites
 
 - Node.js 18+ (install via [nvm](https://github.com/nvm-sh/nvm))
-- An API key from one of: [DeepSeek](https://platform.deepseek.com/) (free), [Groq](https://console.groq.com/) (free), or [Anthropic](https://console.anthropic.com/)
+- An API key from one of: [Doubao/Volcengine](https://console.volcengine.com/ark) (free), [Groq](https://console.groq.com/) (free), [DeepSeek](https://platform.deepseek.com/), or [Anthropic](https://console.anthropic.com/)
 
 ### Installation
 
@@ -40,9 +40,9 @@ cp .env.example .env
 Edit `.env`:
 
 ```bash
-# Choose your provider: "deepseek", "groq", or "anthropic"
-LLM_PROVIDER=deepseek
-DEEPSEEK_API_KEY=sk-your-key-here
+# Choose your provider: "doubao", "deepseek", "groq", or "anthropic"
+LLM_PROVIDER=doubao
+DOUBAO_API_KEY=your-api-key-here
 ```
 
 ### Run in CLI Mode
@@ -74,8 +74,9 @@ Open http://localhost:5173 in your browser to use the chat UI.
 
 | Provider | Env Var | Default Model | Cost |
 |----------|---------|---------------|------|
-| DeepSeek | `DEEPSEEK_API_KEY` | `deepseek-chat` | Free |
+| Doubao (豆包) | `DOUBAO_API_KEY` | `doubao-1.5-pro-256k-250115` | Free |
 | Groq | `GROQ_API_KEY` | `llama-3.3-70b-versatile` | Free tier |
+| DeepSeek | `DEEPSEEK_API_KEY` | `deepseek-chat` | Paid |
 | Anthropic | `ANTHROPIC_API_KEY` | `claude-sonnet-4-20250514` | Paid |
 
 Set `LLM_PROVIDER` in `.env` to switch providers. You can also override the model with the `MODEL` env var.
@@ -132,7 +133,8 @@ liteclaw/
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `LLM_PROVIDER` | `anthropic` | LLM provider: `anthropic`, `deepseek`, or `groq` |
+| `LLM_PROVIDER` | `doubao` | LLM provider: `doubao`, `deepseek`, `groq`, or `anthropic` |
+| `DOUBAO_API_KEY` | — | Doubao/Volcengine API key |
 | `ANTHROPIC_API_KEY` | — | Anthropic API key |
 | `DEEPSEEK_API_KEY` | — | DeepSeek API key |
 | `GROQ_API_KEY` | — | Groq API key |
