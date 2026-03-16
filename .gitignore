@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.env
+memory/conversations/
+memory/facts/
+web/node_modules/
+web/dist/
+*.log
