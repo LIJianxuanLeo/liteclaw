@@ -4,7 +4,7 @@ A lightweight, open-source AI agent framework inspired by [OpenClaw](https://git
 
 ## Features
 
-- **Multi-LLM Support** — Switch between Doubao (free), DeepSeek, Groq (free), and Anthropic Claude with one env var
+- **Multi-LLM Support** — Switch between Groq (free), Google Gemini (free), DeepSeek, and Anthropic Claude with one env var
 - **Agentic Tool Loop** — The agent reasons step-by-step, calling tools iteratively until the task is complete
 - **4 Built-in Tools** — Shell execution, file operations, web access, persistent memory
 - **Web UI** — React-based chat interface with real-time streaming via WebSocket
@@ -18,7 +18,7 @@ A lightweight, open-source AI agent framework inspired by [OpenClaw](https://git
 ### Prerequisites
 
 - Node.js 18+ (install via [nvm](https://github.com/nvm-sh/nvm))
-- An API key from one of: [Doubao/Volcengine](https://console.volcengine.com/ark) (free), [Groq](https://console.groq.com/) (free), [DeepSeek](https://platform.deepseek.com/), or [Anthropic](https://console.anthropic.com/)
+- An API key from one of: [Groq](https://console.groq.com/) (free), [Google Gemini](https://aistudio.google.com/apikey) (free), [DeepSeek](https://platform.deepseek.com/), or [Anthropic](https://console.anthropic.com/)
 
 ### Installation
 
@@ -40,9 +40,9 @@ cp .env.example .env
 Edit `.env`:
 
 ```bash
-# Choose your provider: "doubao", "deepseek", "groq", or "anthropic"
-LLM_PROVIDER=doubao
-DOUBAO_API_KEY=your-api-key-here
+# Choose your provider: "groq", "gemini", "deepseek", or "anthropic"
+LLM_PROVIDER=groq
+GROQ_API_KEY=gsk_your-key-here
 ```
 
 ### Run in CLI Mode
@@ -74,8 +74,8 @@ Open http://localhost:5173 in your browser to use the chat UI.
 
 | Provider | Env Var | Default Model | Cost |
 |----------|---------|---------------|------|
-| Doubao (豆包) | `DOUBAO_API_KEY` | `doubao-1.5-pro-256k-250115` | Free |
-| Groq | `GROQ_API_KEY` | `llama-3.3-70b-versatile` | Free tier |
+| Groq | `GROQ_API_KEY` | `llama-3.3-70b-versatile` | Free |
+| Google Gemini | `GEMINI_API_KEY` | `gemini-2.5-flash` | Free |
 | DeepSeek | `DEEPSEEK_API_KEY` | `deepseek-chat` | Paid |
 | Anthropic | `ANTHROPIC_API_KEY` | `claude-sonnet-4-20250514` | Paid |
 
@@ -133,8 +133,8 @@ liteclaw/
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `LLM_PROVIDER` | `doubao` | LLM provider: `doubao`, `deepseek`, `groq`, or `anthropic` |
-| `DOUBAO_API_KEY` | — | Doubao/Volcengine API key |
+| `LLM_PROVIDER` | `groq` | LLM provider: `groq`, `gemini`, `deepseek`, or `anthropic` |
+| `GEMINI_API_KEY` | — | Google Gemini API key |
 | `ANTHROPIC_API_KEY` | — | Anthropic API key |
 | `DEEPSEEK_API_KEY` | — | DeepSeek API key |
 | `GROQ_API_KEY` | — | Groq API key |

@@ -231,7 +231,7 @@ export class OpenAICompatibleClient implements LLMClient {
 const PROVIDER_URLS: Record<string, string> = {
   deepseek: "https://api.deepseek.com",
   groq: "https://api.groq.com/openai/v1",
-  doubao: "https://ark.cn-beijing.volces.com/api/v3",
+  gemini: "https://generativelanguage.googleapis.com/v1beta/openai/",
 };
 
 export function createLLMClient(config: AgentConfig): LLMClient {
@@ -253,10 +253,10 @@ export function createLLMClient(config: AgentConfig): LLMClient {
         model: config.model,
       });
 
-    case "doubao":
+    case "gemini":
       return new OpenAICompatibleClient({
-        apiKey: config.doubaoApiKey,
-        baseURL: PROVIDER_URLS.doubao,
+        apiKey: config.geminiApiKey,
+        baseURL: PROVIDER_URLS.gemini,
         model: config.model,
       });
 
