@@ -63,9 +63,9 @@ Scan the QR code with WhatsApp (Linked Devices → Link a Device). Once connecte
 | Tool | Operations | Description |
 |------|-----------|-------------|
 | `file_ops` | read, write, append, list | File operations restricted to `data/` and `notes/` directories |
-| `todo` | add, list, complete | Task management with priorities, stored in `data/todos.json` |
-| `notes` | write, read, list, summary | Daily journaling (`YYYY-MM-DD.md`) with weekly summaries |
-| `time` | now, create_reminder, list, pause | Current time and cron-based scheduled reminders |
+| `todo` | add_task, list_tasks, complete_task | Task management with priorities, stored in `data/tasks.json` |
+| `notes` | daily_note, append_journal, weekly_summary | Daily journaling (`YYYY-MM-DD.md`) with weekly summaries |
+| `time` | now, create_reminder, list_reminders, pause_reminder | Current time and cron-based scheduled reminders |
 
 ## Security Model
 
