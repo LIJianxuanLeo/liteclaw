@@ -25,6 +25,8 @@
     "@types/node": "^22.13.0",
     "@types/node-cron": "^3.0.11",
     "@types/qrcode-terminal": "^0.12.2",
+    "docx": "^9.6.1",
+    "pptxgenjs": "^4.0.1",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
     "vitest": "^3.0.0"

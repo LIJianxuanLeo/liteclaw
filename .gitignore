@@ -1,8 +1,8 @@
 node_modules/
 dist/
 .env
-memory/conversations/
-memory/facts/
-web/node_modules/
-web/dist/
+data/
+notes/
+whatsapp-auth/
 *.log
+.DS_Store
