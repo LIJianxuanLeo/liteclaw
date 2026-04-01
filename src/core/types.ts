@@ -1,27 +1,57 @@
 import { z } from "zod";
 
-// Agent states
-export type AgentState = "idle" | "thinking" | "tool_execution" | "responding";
+// --- Incoming / Outgoing Messages ---
 
-// Channel-agnostic message types
 export interface IncomingMessage {
   id: string;
-  conversationId: string;
-  channel: string;
-  userId: string;
+  from: string; // WhatsApp JID or "scheduler"
   text: string;
   timestamp: number;
 }
 
 export interface OutgoingMessage {
   id: string;
-  conversationId: string;
   text: string;
-  toolCalls?: ToolCallRecord[];
   timestamp: number;
 }
 
-// Tool system types
+// --- Decision Types (LLM outputs exactly one) ---
+
+export const ReplyDecisionSchema = z.object({
+  type: z.literal("reply"),
+  text: z.string(),
+});
+
+export const ToolCallDecisionSchema = z.object({
+  type: z.literal("tool_call"),
+  tool: z.string(),
+  args: z.record(z.unknown()),
+});
+
+export const ScheduleDecisionSchema = z.object({
+  type: z.literal("schedule"),
+  job: z.object({
+    id: z.string().optional(),
+    name: z.string(),
+    prompt: z.string(),
+    cron: z.string(),
+    active: z.boolean().optional().default(true),
+  }),
+});
+
+export const DecisionSchema = z.discriminatedUnion("type", [
+  ReplyDecisionSchema,
+  ToolCallDecisionSchema,
+  ScheduleDecisionSchema,
+]);
+
+export type Decision = z.infer<typeof DecisionSchema>;
+export type ReplyDecision = z.infer<typeof ReplyDecisionSchema>;
+export type ToolCallDecision = z.infer<typeof ToolCallDecisionSchema>;
+export type ScheduleDecision = z.infer<typeof ScheduleDecisionSchema>;
+
+// --- Tool System ---
+
 export interface ToolDefinition {
   name: string;
   description: string;
@@ -41,62 +71,44 @@ export interface ToolResult {
   error?: string;
 }
 
-export interface ToolCallRecord {
-  name: string;
-  input: Record<string, unknown>;
-  output: string;
-  success: boolean;
-}
+// --- Job / Task ---
 
-// Conversation types
-export interface ConversationTurn {
-  role: "user" | "assistant";
-  content: string;
-  toolCalls?: ToolCallRecord[];
-  timestamp: number;
-}
-
-export interface Conversation {
+export interface Job {
   id: string;
-  title: string;
-  turns: ConversationTurn[];
-  createdAt: number;
-  updatedAt: number;
-}
-
-// Skill types
-export interface SkillDefinition {
   name: string;
-  description: string;
-  triggers: string[];
-  tools: string[];
-  instructions: string;
+  prompt: string;
+  cron: string;
+  active: boolean;
+  createdAt: string;
 }
 
-// LLM Provider types
-export type LLMProvider = "anthropic" | "deepseek" | "groq" | "gemini";
+export interface Task {
+  id: string;
+  text: string;
+  priority: "high" | "medium" | "low";
+  done: boolean;
+  createdAt: string;
+  completedAt?: string;
+}
 
-// Configuration
+// --- AuthZ ---
+
+export interface AuthZResult {
+  allowed: boolean;
+  reason?: string;
+}
+
+// --- Config ---
+
+export type LLMProvider = "groq" | "anthropic";
+
 export interface AgentConfig {
   provider: LLMProvider;
-  anthropicApiKey: string;
-  deepseekApiKey: string;
-  groqApiKey: string;
-  geminiApiKey: string;
-  agentName: string;
-  workspaceDir: string;
-  maxToolDepth: number;
-  logLevel: "debug" | "info" | "warn" | "error";
-  channel: "cli" | "telegram" | "web";
-  port: number;
+  apiKey: string;
   model: string;
+  agentName: string;
+  dataDir: string;
+  notesDir: string;
+  whatsappAllowlist: string[];
+  logLevel: "debug" | "info" | "warn" | "error";
 }
-
-// WebSocket event types for frontend streaming
-export type WSEvent =
-  | { type: "status"; state: AgentState; detail?: string }
-  | { type: "tool_call"; name: string; input: Record<string, unknown> }
-  | { type: "tool_result"; name: string; output: string; success: boolean }
-  | { type: "text_delta"; text: string }
-  | { type: "message_complete"; message: OutgoingMessage }
-  | { type: "error"; message: string };

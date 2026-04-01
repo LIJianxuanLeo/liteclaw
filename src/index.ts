@@ -1,70 +1,92 @@
-import http from "http";
-import path from "path";
 import { loadConfig } from "./utils/config.js";
 import { setLogLevel, log } from "./utils/logger.js";
 import { createLLMClient } from "./core/llm.js";
 import { ToolRegistry } from "./core/tool-registry.js";
+import { AuthZ } from "./core/authz.js";
 import { Agent } from "./core/agent.js";
 import { MemoryManager } from "./memory/memory-manager.js";
-import { ShellTool } from "./tools/shell.js";
+import { ContextLoader } from "./memory/context-loader.js";
+import { AuditLog } from "./utils/audit.js";
 import { FileOpsTool } from "./tools/file-ops.js";
-import { WebAccessTool } from "./tools/web-access.js";
-import { MemoryTool } from "./tools/memory-tool.js";
-import { SkillLoader } from "./skills/skill-loader.js";
-import { CLIChannel } from "./channels/cli.js";
-import { createApp } from "./server/api.js";
-import { attachWebSocket } from "./server/ws.js";
+import { TodoTool } from "./tools/todo-tool.js";
+import { NotesTool } from "./tools/notes-tool.js";
+import { TimeTool } from "./tools/time-tool.js";
+import { WhatsAppChannel } from "./channel/whatsapp.js";
+import { Scheduler } from "./scheduler/scheduler.js";
 
 async function main() {
-  // Parse CLI args for channel override
-  const channelArg = process.argv.find((a) => a.startsWith("--channel="));
   const config = loadConfig();
-  if (channelArg) {
-    config.channel = channelArg.split("=")[1] as typeof config.channel;
-  }
-
   setLogLevel(config.logLevel);
-  log.info(`Starting ${config.agentName}`, { provider: config.provider, channel: config.channel, model: config.model });
+  log.info(`Starting ${config.agentName}`, {
+    provider: config.provider,
+    model: config.model,
+  });
 
   // Initialize memory
-  const memoryDir = path.resolve("memory");
-  const memoryManager = new MemoryManager(memoryDir);
-  await memoryManager.init();
+  const memory = new MemoryManager(config.dataDir);
+  await memory.init();
+
+  // Initialize audit log
+  const audit = new AuditLog(config.dataDir);
+  await audit.log("startup", { agent: config.agentName, provider: config.provider });
 
   // Initialize tools
   const toolRegistry = new ToolRegistry();
-  toolRegistry.register(new ShellTool(config.workspaceDir));
-  toolRegistry.register(new FileOpsTool(config.workspaceDir));
-  toolRegistry.register(new WebAccessTool());
-  toolRegistry.register(new MemoryTool(memoryManager));
 
-  // Load skills
-  const skillLoader = new SkillLoader(path.resolve("skills"));
-  await skillLoader.loadAll();
+  // Scheduler reload callback — will be set after scheduler is created
+  let schedulerReload: (() => void) | undefined;
 
-  // Initialize LLM and Agent
+  toolRegistry.register(new FileOpsTool([config.dataDir, config.notesDir]));
+  toolRegistry.register(new TodoTool(config.dataDir));
+  toolRegistry.register(new NotesTool(config.notesDir));
+  toolRegistry.register(
+    new TimeTool(config.dataDir, () => {
+      schedulerReload?.();
+    })
+  );
+
+  // Initialize LLM
   const llm = createLLMClient(config);
-  const agent = new Agent(config, llm, toolRegistry);
 
-  // Start the appropriate channel
-  if (config.channel === "cli") {
-    const cli = new CLIChannel();
-    await cli.start(async (msg) => {
-      const history: any[] = [];
-      return agent.processMessage(msg, history);
-    });
-  } else if (config.channel === "web") {
-    const app = createApp(agent, memoryManager);
-    const server = http.createServer(app);
-    attachWebSocket(server, agent);
-    server.listen(config.port, () => {
-      log.info(`Server running on http://localhost:${config.port}`);
-      console.log(`\n🤖 LiteClaw Web Server running at http://localhost:${config.port}\n`);
-    });
-  } else {
-    log.error(`Unknown channel: ${config.channel}`);
-    process.exit(1);
-  }
+  // Initialize AuthZ
+  const authz = new AuthZ([config.dataDir, config.notesDir]);
+
+  // Initialize context loader
+  const contextLoader = new ContextLoader(memory, config.dataDir);
+
+  // Create agent
+  const agent = new Agent(config, llm, toolRegistry, authz, memory, contextLoader, audit);
+
+  // Start WhatsApp channel
+  const whatsapp = new WhatsAppChannel({
+    dataDir: config.dataDir,
+    allowlist: config.whatsappAllowlist,
+    agent,
+  });
+
+  // Start scheduler
+  const defaultRecipient = config.whatsappAllowlist[0] || "";
+  const scheduler = new Scheduler(config.dataDir, agent, whatsapp, defaultRecipient);
+  schedulerReload = () => {
+    scheduler.reload().catch((err) => log.error("Scheduler reload failed", { error: String(err) }));
+  };
+
+  await scheduler.start();
+  await whatsapp.start();
+
+  log.info(`${config.agentName} is running. Waiting for WhatsApp messages...`);
+
+  // Graceful shutdown
+  const shutdown = async () => {
+    log.info("Shutting down...");
+    scheduler.stop();
+    whatsapp.stop();
+    await audit.log("shutdown");
+    process.exit(0);
+  };
+
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
 }
 
 main().catch((err) => {

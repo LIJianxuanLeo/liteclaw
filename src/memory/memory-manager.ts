@@ -1,148 +1,108 @@
 import fs from "fs/promises";
 import path from "path";
-import { randomUUID } from "crypto";
-import type { MemoryEntry, ConversationLog } from "./memory-types.js";
 import { log } from "../utils/logger.js";
 
+const MAX_CONVERSATION_ENTRIES = 40; // Auto-trim beyond this
+
 export class MemoryManager {
-  private baseDir: string;
-  private factsDir: string;
-  private convDir: string;
+  private dataDir: string;
+  private memoryFile: string;
+  private conversationFile: string;
 
-  constructor(baseDir: string) {
-    this.baseDir = baseDir;
-    this.factsDir = path.join(baseDir, "facts");
-    this.convDir = path.join(baseDir, "conversations");
+  constructor(dataDir: string) {
+    this.dataDir = dataDir;
+    this.memoryFile = path.join(dataDir, "memory.md");
+    this.conversationFile = path.join(dataDir, "conversations.md");
   }
 
-  async init() {
-    await fs.mkdir(this.factsDir, { recursive: true });
-    await fs.mkdir(this.convDir, { recursive: true });
-    log.info("Memory initialized", { baseDir: this.baseDir });
+  async init(): Promise<void> {
+    await fs.mkdir(this.dataDir, { recursive: true });
+
+    // Create files if they don't exist
+    for (const file of [this.memoryFile, this.conversationFile]) {
+      try {
+        await fs.access(file);
+      } catch {
+        await fs.writeFile(file, "", "utf-8");
+        log.info(`Created ${path.basename(file)}`);
+      }
+    }
+    log.info("Memory initialized", { dataDir: this.dataDir });
   }
 
-  // --- Facts ---
+  // --- Long-term Memory (memory.md) ---
 
-  async storeFact(content: string, tags: string[] = []): Promise<MemoryEntry> {
-    const entry: MemoryEntry = {
-      id: randomUUID(),
-      type: "fact",
-      tags,
-      content,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    };
-
-    const frontmatter = `---\nid: ${entry.id}\ntags: [${tags.join(", ")}]\ncreatedAt: ${new Date(entry.createdAt).toISOString()}\n---\n\n`;
-    await fs.writeFile(
-      path.join(this.factsDir, `${entry.id}.md`),
-      frontmatter + content,
-      "utf-8"
-    );
-
-    log.debug("Stored fact", { id: entry.id, tags });
-    return entry;
-  }
-
-  async recall(query: string): Promise<MemoryEntry[]> {
-    const results: MemoryEntry[] = [];
-    const queryLower = query.toLowerCase();
-
+  async loadMemory(): Promise<string> {
     try {
-      const files = await fs.readdir(this.factsDir);
-      for (const file of files) {
-        if (!file.endsWith(".md")) continue;
-        const content = await fs.readFile(path.join(this.factsDir, file), "utf-8");
-        if (content.toLowerCase().includes(queryLower)) {
-          const parsed = this.parseFact(file, content);
-          if (parsed) results.push(parsed);
+      return await fs.readFile(this.memoryFile, "utf-8");
+    } catch {
+      return "";
+    }
+  }
+
+  async appendMemory(fact: string): Promise<void> {
+    const timestamp = new Date().toISOString();
+    const entry = `\n- [${timestamp}] ${fact}\n`;
+    await fs.appendFile(this.memoryFile, entry, "utf-8");
+    log.debug("Memory fact stored", { fact: fact.substring(0, 50) });
+  }
+
+  // --- Short-term Conversation (conversations.md) ---
+
+  async loadRecentConversation(n: number = 20): Promise<string> {
+    try {
+      const raw = await fs.readFile(this.conversationFile, "utf-8");
+      const lines = raw.trim().split("\n");
+      // Each entry is 2 lines: "## Role\ncontent", take last n*2 lines
+      const entries = [];
+      let current = "";
+      for (const line of lines) {
+        if (line.startsWith("## ") && current) {
+          entries.push(current.trim());
+          current = line + "\n";
+        } else {
+          current += line + "\n";
         }
       }
+      if (current.trim()) entries.push(current.trim());
+
+      return entries.slice(-n).join("\n\n");
     } catch {
-      // directory might not exist yet
+      return "";
     }
-
-    return results;
   }
 
-  private parseFact(filename: string, raw: string): MemoryEntry | null {
-    const id = filename.replace(".md", "");
-    // Extract content after frontmatter
-    const parts = raw.split("---");
-    const content = parts.length >= 3 ? parts.slice(2).join("---").trim() : raw;
-    // Extract tags from frontmatter
-    const tagsMatch = raw.match(/tags:\s*\[([^\]]*)\]/);
-    const tags = tagsMatch ? tagsMatch[1].split(",").map((t) => t.trim()).filter(Boolean) : [];
-    const dateMatch = raw.match(/createdAt:\s*(.+)/);
-    const createdAt = dateMatch ? new Date(dateMatch[1]).getTime() : Date.now();
+  async appendConversation(role: "User" | "Assistant", text: string): Promise<void> {
+    const timestamp = new Date().toISOString();
+    const entry = `## ${role} [${timestamp}]\n${text}\n\n`;
+    await fs.appendFile(this.conversationFile, entry, "utf-8");
 
-    return { id, type: "fact", tags, content, createdAt, updatedAt: createdAt };
+    // Auto-trim if too long
+    await this.trimConversation();
   }
 
-  // --- Conversations ---
-
-  async saveConversation(conv: ConversationLog): Promise<void> {
-    const frontmatter = `---\nid: ${conv.id}\ntitle: ${conv.title}\ncreatedAt: ${new Date(conv.createdAt).toISOString()}\nupdatedAt: ${new Date(conv.updatedAt).toISOString()}\n---\n\n`;
-
-    const body = conv.turns
-      .map((t) => `## ${t.role === "user" ? "User" : "Assistant"}\n\n${t.content}\n`)
-      .join("\n");
-
-    await fs.writeFile(
-      path.join(this.convDir, `${conv.id}.md`),
-      frontmatter + body,
-      "utf-8"
-    );
-  }
-
-  async listConversations(): Promise<Array<{ id: string; title: string; updatedAt: number }>> {
-    const results: Array<{ id: string; title: string; updatedAt: number }> = [];
-
+  private async trimConversation(): Promise<void> {
     try {
-      const files = await fs.readdir(this.convDir);
-      for (const file of files) {
-        if (!file.endsWith(".md")) continue;
-        const content = await fs.readFile(path.join(this.convDir, file), "utf-8");
-        const titleMatch = content.match(/title:\s*(.+)/);
-        const dateMatch = content.match(/updatedAt:\s*(.+)/);
-        results.push({
-          id: file.replace(".md", ""),
-          title: titleMatch?.[1] ?? "Untitled",
-          updatedAt: dateMatch ? new Date(dateMatch[1]).getTime() : 0,
-        });
+      const raw = await fs.readFile(this.conversationFile, "utf-8");
+      const entries: string[] = [];
+      let current = "";
+      for (const line of raw.split("\n")) {
+        if (line.startsWith("## ") && current) {
+          entries.push(current);
+          current = line + "\n";
+        } else {
+          current += line + "\n";
+        }
+      }
+      if (current.trim()) entries.push(current);
+
+      if (entries.length > MAX_CONVERSATION_ENTRIES) {
+        const kept = entries.slice(-MAX_CONVERSATION_ENTRIES);
+        await fs.writeFile(this.conversationFile, kept.join(""), "utf-8");
+        log.info("Conversation trimmed", { removed: entries.length - kept.length });
       }
     } catch {
-      // directory might not exist yet
-    }
-
-    return results.sort((a, b) => b.updatedAt - a.updatedAt);
-  }
-
-  async getConversation(id: string): Promise<ConversationLog | null> {
-    try {
-      const content = await fs.readFile(path.join(this.convDir, `${id}.md`), "utf-8");
-      const titleMatch = content.match(/title:\s*(.+)/);
-      const createdMatch = content.match(/createdAt:\s*(.+)/);
-      const updatedMatch = content.match(/updatedAt:\s*(.+)/);
-
-      // Parse turns from markdown
-      const turns: ConversationLog["turns"] = [];
-      const sections = content.split(/^## (User|Assistant)\s*$/m);
-      for (let i = 1; i < sections.length; i += 2) {
-        const role = sections[i].toLowerCase() as "user" | "assistant";
-        const text = sections[i + 1]?.trim() ?? "";
-        turns.push({ role, content: text, timestamp: 0 });
-      }
-
-      return {
-        id,
-        title: titleMatch?.[1] ?? "Untitled",
-        turns,
-        createdAt: createdMatch ? new Date(createdMatch[1]).getTime() : 0,
-        updatedAt: updatedMatch ? new Date(updatedMatch[1]).getTime() : 0,
-      };
-    } catch {
-      return null;
+      // Ignore trim errors
     }
   }
 }
