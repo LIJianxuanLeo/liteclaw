@@ -1,15 +1,21 @@
 import makeWASocket, {
   useMultiFileAuthState,
   DisconnectReason,
+  fetchLatestWaWebVersion,
   WASocket,
   proto,
   makeCacheableSignalKeyStore,
 } from "@whiskeysockets/baileys";
 import { Boom } from "@hapi/boom";
+import pino from "pino";
+import qrcode from "qrcode-terminal";
 import path from "path";
 import { log } from "../utils/logger.js";
 import type { Agent } from "../core/agent.js";
 import type { IncomingMessage } from "../core/types.js";
+
+// Baileys requires a pino-compatible logger
+const baileysLogger = pino({ level: "silent" });
 
 export interface WhatsAppChannelOptions {
   dataDir: string;
@@ -28,6 +34,8 @@ export class WhatsAppChannel {
   private allowlist: Set<string>;
   private authDir: string;
   private sock: WASocket | null = null;
+  private myJid: string | null = null;
+  private repliedMessageIds = new Set<string>();
 
   constructor(opts: WhatsAppChannelOptions) {
     this.agent = opts.agent;
@@ -38,13 +46,24 @@ export class WhatsAppChannel {
   async start(): Promise<void> {
     const { state, saveCreds } = await useMultiFileAuthState(this.authDir);
 
+    // Fetch the latest WhatsApp Web version to avoid 405 rejection
+    let version: [number, number, number] | undefined;
+    try {
+      const result = await fetchLatestWaWebVersion({});
+      version = result.version;
+      log.info("Fetched WhatsApp Web version", { version });
+    } catch (err) {
+      log.warn("Failed to fetch WA version, using default", { error: String(err) });
+    }
+
     this.sock = makeWASocket({
       auth: {
         creds: state.creds,
-        keys: makeCacheableSignalKeyStore(state.keys, log as any),
+        keys: makeCacheableSignalKeyStore(state.keys, baileysLogger),
       },
-      printQRInTerminal: true,
-      logger: log as any,
+      logger: baileysLogger,
+      browser: ["LiteClaw", "Chrome", "1.0.0"],
+      ...(version ? { version } : {}),
     });
 
     // Save credentials on update
@@ -55,15 +74,19 @@ export class WhatsAppChannel {
       const { connection, lastDisconnect, qr } = update;
 
       if (qr) {
+        qrcode.generate(qr, { small: true });
         log.info("Scan QR code above to connect WhatsApp");
       }
 
       if (connection === "close") {
         const reason = (lastDisconnect?.error as Boom)?.output?.statusCode;
-        const shouldReconnect = reason !== DisconnectReason.loggedOut;
+        const shouldReconnect = reason !== DisconnectReason.loggedOut && reason !== 405;
         log.warn("WhatsApp connection closed", { reason, shouldReconnect });
 
-        if (shouldReconnect) {
+        if (reason === 405) {
+          log.error("WhatsApp rejected connection (405). Protocol version may be outdated. Retrying with fresh version in 10s...");
+          setTimeout(() => this.start(), 10000);
+        } else if (shouldReconnect) {
           log.info("Reconnecting WhatsApp...");
           setTimeout(() => this.start(), 3000);
         } else {
@@ -72,33 +95,60 @@ export class WhatsAppChannel {
       }
 
       if (connection === "open") {
-        log.info("WhatsApp connected successfully");
+        this.myJid = this.sock?.user?.id || null;
+        log.info("WhatsApp connected successfully", { myJid: this.myJid });
       }
     });
 
     // Handle incoming messages
-    this.sock.ev.on("messages.upsert", async ({ messages, type }) => {
-      if (type !== "notify") return;
+    this.sock.ev.on("messages.upsert", async (upsert) => {
+      log.debug("messages.upsert event", {
+        type: (upsert as any).type,
+        messageCount: upsert.messages?.length,
+        keys: upsert.messages?.map((m) => ({
+          remoteJid: m.key?.remoteJid,
+          fromMe: m.key?.fromMe,
+          hasConversation: !!m.message?.conversation,
+          hasExtended: !!m.message?.extendedTextMessage,
+          messageKeys: m.message ? Object.keys(m.message) : [],
+        })),
+      });
 
-      for (const msg of messages) {
+      // Baileys 6.x: type may be "notify" or "append" or absent
+      const type = (upsert as any).type;
+      if (type && type !== "notify") return;
+
+      for (const msg of upsert.messages) {
         await this.processMessage(msg);
       }
     });
   }
 
   private async processMessage(msg: proto.IWebMessageInfo): Promise<void> {
-    // Ignore own messages
-    if (msg.key.fromMe) return;
-
-    // Ignore group messages
     const jid = msg.key.remoteJid;
     if (!jid || jid.endsWith("@g.us")) return;
 
-    // Extract phone number from JID (e.g., "971506221055@s.whatsapp.net" → "971506221055")
+    // Skip bot's own replies to prevent infinite loop
+    const msgId = msg.key.id || "";
+    if (this.repliedMessageIds.has(msgId)) {
+      this.repliedMessageIds.delete(msgId);
+      return;
+    }
+
+    // Extract phone or LID identifier
     const phone = jid.split("@")[0];
 
-    // Allowlist check
-    if (this.allowlist.size > 0 && !this.allowlist.has(phone)) {
+    // For non-self messages: ignore fromMe (only process incoming)
+    // For self-chat (@lid or own @s.whatsapp.net): allow fromMe
+    if (msg.key.fromMe) {
+      const isLid = jid.endsWith("@lid");
+      const myPhone = this.myJid ? this.myJid.split(":")[0].split("@")[0] : null;
+      const isSelf = isLid || phone === myPhone;
+      if (!isSelf) return;
+    }
+
+    // Allowlist check (skip for LID-format self-chat)
+    if (!jid.endsWith("@lid") && this.allowlist.size > 0 && !this.allowlist.has(phone)) {
       log.warn("Message from non-allowlisted number", { phone });
       return;
     }
@@ -145,7 +195,11 @@ export class WhatsAppChannel {
       return;
     }
     try {
-      await this.sock.sendMessage(jid, { text });
+      const sent = await this.sock.sendMessage(jid, { text });
+      // Track sent message ID to avoid processing our own replies in self-chat
+      if (sent?.key?.id) {
+        this.repliedMessageIds.add(sent.key.id);
+      }
       log.debug("Sent WhatsApp message", { jid, textLength: text.length });
     } catch (err) {
       log.error("Failed to send WhatsApp message", { jid, error: String(err) });

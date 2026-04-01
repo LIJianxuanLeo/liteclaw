@@ -100,7 +100,7 @@ export interface AuthZResult {
 
 // --- Config ---
 
-export type LLMProvider = "groq" | "anthropic";
+export type LLMProvider = "groq" | "anthropic" | "gemini";
 
 export interface AgentConfig {
   provider: LLMProvider;

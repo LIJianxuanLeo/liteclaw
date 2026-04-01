@@ -15,6 +15,7 @@ function env(key: string, fallback?: string): string {
 const DEFAULT_MODELS: Record<LLMProvider, string> = {
   groq: "llama-3.3-70b-versatile",
   anthropic: "claude-sonnet-4-20250514",
+  gemini: "gemini-2.5-flash",
 };
 
 export function loadConfig(): AgentConfig {

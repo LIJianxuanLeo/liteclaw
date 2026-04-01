@@ -85,6 +85,42 @@ class AnthropicLLMClient implements LLMClient {
   }
 }
 
+// --- Gemini (via OpenAI-compatible API) ---
+
+class GeminiClient implements LLMClient {
+  private client: OpenAI;
+  private model: string;
+
+  constructor(apiKey: string, model: string) {
+    this.client = new OpenAI({
+      apiKey,
+      baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/",
+    });
+    this.model = model;
+  }
+
+  async chat(systemPrompt: string, messages: LLMMessage[]): Promise<string> {
+    log.debug("Gemini request", { model: this.model, messageCount: messages.length });
+
+    const openaiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+      { role: "system", content: systemPrompt },
+      ...messages.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
+    ];
+
+    const response = await this.client.chat.completions.create({
+      model: this.model,
+      messages: openaiMessages,
+      response_format: { type: "json_object" },
+      max_tokens: 2048,
+      temperature: 0.3,
+    });
+
+    const text = response.choices[0]?.message?.content ?? "";
+    log.debug("Gemini response", { tokens: response.usage?.total_tokens });
+    return text;
+  }
+}
+
 // --- Factory ---
 
 export function createLLMClient(config: AgentConfig): LLMClient {
@@ -93,6 +129,8 @@ export function createLLMClient(config: AgentConfig): LLMClient {
       return new GroqClient(config.apiKey, config.model);
     case "anthropic":
       return new AnthropicLLMClient(config.apiKey, config.model);
+    case "gemini":
+      return new GeminiClient(config.apiKey, config.model);
     default:
       throw new Error(`Unknown LLM provider: ${config.provider}`);
   }
