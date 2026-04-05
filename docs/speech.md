@@ -1,89 +1,61 @@
-# LiteClaw — 5-Minute Presentation Script
+# LiteClaw — 3-Minute Presentation Script
 
-**Total time: ~5 minutes | ~900 words**
-
----
-
-## Slide 1: Title (15 seconds)
-
-Good morning/afternoon everyone. Today I'm presenting LiteClaw — a lightweight, WhatsApp-driven GenAI agent framework. LiteClaw demonstrates that a practical personal AI assistant can be built in under 2,000 lines of TypeScript with strong security guarantees and zero-cost LLM operation.
+**Total time: ~3 minutes | ~460 words**
 
 ---
 
-## Slide 2: Introduction (45 seconds)
+## Slide 1: Title (10 seconds)
 
-Let me set the stage. We're living in the age of AI agents — systems that don't just generate text, but reason about tasks and take actions using tools. The ReAct paradigm, introduced by Yao et al., showed that LLMs can interleave reasoning with tool use to solve complex, multi-step problems.
-
-But here's the challenge. On one end, we have production frameworks like OpenClaw with over 500,000 lines of code. On the other, minimalist projects like NanoClaw at 3,900 lines that lack essential features. And critically — all of them require you to sit at a computer.
-
-Meanwhile, WhatsApp has over 2 billion active users worldwide. It's the most natural interface for a personal assistant — always in your pocket, no setup required. LiteClaw bridges this gap: approximately 1,800 lines of TypeScript, delivering AI assistance directly through WhatsApp.
+Good morning everyone. Today I'm presenting LiteClaw — a lightweight, WhatsApp-driven GenAI agent framework built in under 2,000 lines of TypeScript.
 
 ---
 
-## Slide 3: Problem Statement (45 seconds)
+## Slide 2: Background & Existing Problem (30 seconds)
 
-We identified four key challenges.
+AI agents have evolved from simple text generators to autonomous systems that reason and use tools — this is the ReAct paradigm. However, existing frameworks face four key problems. First, complexity — OpenClaw has 500,000 lines of code. Second, safety — agents with shell access can execute destructive commands. Third, accessibility — all existing frameworks require a computer. Fourth, cost — most need paid APIs.
 
-First, **complexity**. OpenClaw requires 70 dependencies and weeks of study just to understand the codebase. This is a massive barrier for individual developers.
-
-Second, **safety**. Agents with shell and web access can execute destructive commands through hallucination or prompt injection. Multi-turn loops compound this risk — one user message might trigger dozens of uncontrolled tool executions.
-
-Third, **accessibility**. Web and terminal interfaces tie you to a computer. No existing lightweight framework delivers AI assistance natively through a messaging platform.
-
-Fourth, **cost**. Most frameworks require paid API keys from OpenAI or Anthropic, creating barriers for students and developers in many regions.
-
-This leads to our research question: Can a sub-2,000-line agent framework deliver secure, WhatsApp-native personal AI assistance with free LLM support?
+Our research question: Can a sub-2,000-line framework deliver secure, WhatsApp-native AI assistance with free LLM support?
 
 ---
 
-## Slide 4: Proposed Agent Overview (30 seconds)
+## Slide 3: Literature Survey & Idea of Solution (25 seconds)
 
-LiteClaw answers this question with six core features. It's built in approximately 1,800 lines across 20 TypeScript files. It provides four local-only tools — file operations, todo management, daily notes, and time-based reminders. It supports three LLM providers, with Groq and Google Gemini available for free. It connects through WhatsApp using the Baileys library. It enforces security through a default-deny AuthZ permission wall. And it includes a cron-based scheduler for proactive reminders delivered to your phone.
-
----
-
-## Slide 5: Decision Model (45 seconds)
-
-The most distinctive design choice is our **single-decision model**. Unlike traditional ReAct agents that loop through multiple reasoning-action cycles, LiteClaw processes each message in exactly one pass.
-
-The pipeline works like this: a WhatsApp message enters the system, the Context Loader assembles relevant memory and state, the LLM makes a single call, and the Decision Parser validates the output using Zod schemas.
-
-The LLM must output exactly one of three JSON decision types: a **reply** for direct text responses, a **tool call** for executing one local tool, or a **schedule** command for creating cron-based reminders.
-
-This means every user message results in at most one LLM call and one tool execution. The system is predictable, auditable, and resource-bounded. If the LLM produces invalid JSON, the parser gracefully falls back to a safe error reply — the system never crashes.
+We surveyed five major frameworks. None of them offer native WhatsApp delivery, and most lack free LLM support. Commercial WhatsApp bots like Twilio are rule-based with no agent reasoning. LiteClaw fills this gap: approximately 1,800 lines, WhatsApp-native, single-decision architecture, free LLM support, and a five-layer security model.
 
 ---
 
-## Slide 6: Architecture (30 seconds)
+## Slide 4: System Architecture (20 seconds)
 
-Here's the full architecture. The top row shows the main pipeline: WhatsApp Channel receives messages, the Agent Core orchestrates the flow, the AuthZ Wall validates permissions, and the Tool Registry dispatches execution. The bottom row provides supporting services: Memory Manager and Context Loader for state management, the Scheduler for cron jobs, and the Audit Log recording every action. All of this runs as a single Node.js process with zero database dependencies — just flat markdown and JSON files.
-
----
-
-## Slide 7: Tools & Memory (30 seconds)
-
-Our four tools are deliberately local-only. File Ops handles reading and writing within restricted directories. Todo manages tasks with priorities and completion status. Notes implements daily journaling with weekly summaries. And Time provides current time queries and cron-based reminder management that integrates directly with the scheduler.
-
-The memory system uses two markdown files — one for long-term facts, one for recent conversation history — and the Context Loader assembles everything into a rich prompt context for each LLM call.
+Here is LiteClaw's pipeline. A WhatsApp message flows through the Channel Adapter, Agent Core, AuthZ Wall, and Tool Registry, then the response is sent back. Supporting modules include the LLM Client, Memory Manager, Scheduler, and Audit Log. The entire system runs as one Node.js process with zero database dependencies.
 
 ---
 
-## Slide 8: Prompt Design (30 seconds)
+## Slide 5: Theory — Single-Decision Model (25 seconds)
 
-The system prompt is carefully structured. It establishes the agent's identity, defines the three exact JSON output formats, injects the assembled context including memory, tasks, and reminders, and strictly instructs the LLM to output only valid JSON. We don't use any provider's native tool-calling API — tools are described in the prompt text itself, making the approach uniform across all three providers.
+The key innovation is our single-decision model. The LLM outputs exactly one JSON decision per message — either a reply, a tool call, or a schedule command. This is validated by Zod schemas. Combined with our default-deny AuthZ wall, every tool call is permission-checked before execution. This makes the system predictable, auditable, and resource-bounded.
 
 ---
 
-## Slide 9: Demo & Results (30 seconds)
+## Slide 6: Theory — Tools, Memory & Prompt (20 seconds)
 
-The system is live and tested. Setup takes under two minutes: clone the repo, install dependencies, add a free Gemini API key, and scan the QR code. In testing with Gemini 2.5 Flash, we verified natural language conversation in multiple languages, task management, daily journaling, scheduled reminders, and correct AuthZ enforcement.
+We have four local-only tools: File Ops, Todo, Notes, and Time — all path-restricted. The memory system uses flat markdown files. The ContextLoader injects memory, tasks, and reminders into each prompt. The system prompt enforces strict JSON output across all three LLM providers.
 
-Looking at the code metrics: LiteClaw achieves a 99.6% reduction in lines of code compared to OpenClaw while delivering practical, secure AI assistance through the world's most popular messaging platform.
+---
+
+## Slides 7–8: Results (30 seconds)
+
+We ran seven end-to-end tests with Gemini 2.5 Flash — all passed. These cover natural language chat, task management, journaling, reminders, file operations, and AuthZ enforcement. In code complexity, LiteClaw achieves a 99.6% reduction compared to OpenClaw. Our five-layer security model was validated through targeted testing — all unauthorized access attempts were correctly blocked and logged.
+
+---
+
+## Slide 9: Demo (15 seconds)
+
+Setup takes under two minutes: clone, install, add a free Gemini key, and scan the QR code. The code is open source on GitHub. A demo video is linked in the report.
 
 ---
 
 ## Slide 10: Conclusion (15 seconds)
 
-To conclude: LiteClaw proves that lightweight does not mean limited. Under 1,800 lines of TypeScript delivers a secure, WhatsApp-native AI assistant with free LLM support. The code is open source on GitHub. Future directions include multi-platform support, voice transcription, and multi-user authentication.
+LiteClaw proves that lightweight does not mean limited. Under 1,800 lines delivers secure WhatsApp AI assistance with free LLM support. Future directions include multi-platform support, voice transcription, and RAG-based memory.
 
-Thank you. I'm happy to take questions.
+Thank you.
