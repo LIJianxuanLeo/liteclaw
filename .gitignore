@@ -7,3 +7,6 @@ whatsapp-auth/
 *.log
 .DS_Store
 data.backup/
+
+# Documentation (kept local only)
+docs/
