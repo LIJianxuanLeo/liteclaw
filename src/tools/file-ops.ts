@@ -10,7 +10,10 @@ import { Tool } from "./_base.js";
 export class FileOpsTool extends Tool {
   name = "file_ops";
   description =
-    "Read, write, append, or list files. Restricted to data/ and notes/ directories only.";
+    "Read, write, append, or list files. Restricted to data/ and notes/ directories only. Args: " +
+    "operation='read'|'write'|'append'|'list' [required]; " +
+    "path=string [required, relative path within data/ or notes/, e.g. 'shopping.txt']; " +
+    "content=string [required for write/append].";
   inputSchema = z.object({
     operation: z.enum(["read", "write", "append", "list"]).describe("The file operation"),
     path: z.string().describe("File or directory path (relative to allowed dirs)"),

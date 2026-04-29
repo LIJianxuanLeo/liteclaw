@@ -6,3 +6,4 @@ notes/
 whatsapp-auth/
 *.log
 .DS_Store
+data.backup/

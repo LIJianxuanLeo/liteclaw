@@ -28,14 +28,23 @@ export class AuthZ {
       return { allowed: false, reason: `Unknown tool "${tool}" — default deny` };
     }
 
-    // For file operations, validate path is within allowed directories
+    // For file operations, validate path is within allowed directories.
+    // Mirrors FileOpsTool.resolveSafe(): a relative path is allowed if it
+    // resolves inside any of the allowed directories.
     if (toolBase === "file_ops") {
       const filePath = args.path as string | undefined;
       if (filePath) {
-        const resolved = path.resolve(filePath);
-        const isAllowed = this.allowedDirs.some((dir) => resolved.startsWith(dir + path.sep) || resolved === dir);
-        if (!isAllowed) {
-          log.warn("AuthZ: path traversal blocked", { tool, path: filePath, resolved });
+        // Try each allowed dir as the base for the (possibly relative) path
+        const matchedRelative = this.allowedDirs.some((dir) => {
+          const r = path.resolve(dir, filePath);
+          return r.startsWith(dir + path.sep) || r === dir;
+        });
+        // Also accept absolute paths that already lie within an allowed dir
+        const abs = path.resolve(filePath);
+        const matchedAbsolute = this.allowedDirs.some((dir) => abs.startsWith(dir + path.sep) || abs === dir);
+
+        if (!matchedRelative && !matchedAbsolute) {
+          log.warn("AuthZ: path outside allowed dirs", { tool, path: filePath, resolved: abs });
           return {
             allowed: false,
             reason: `Path "${filePath}" is outside allowed directories`,

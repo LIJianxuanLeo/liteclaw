@@ -11,7 +11,11 @@ import type { Job } from "../core/types.js";
 export class TimeTool extends Tool {
   name = "time";
   description =
-    "Get current time, create/list/pause reminders. Operations: now, create_reminder, list_reminders, pause_reminder.";
+    "Get current time and manage reminders. Operations: " +
+    "now (args: operation='now'); " +
+    "create_reminder (args: operation='create_reminder', name=string [required], prompt=string [required, the message to send when fired], cron=string [required, e.g. '* * * * *' for every minute, '0 9 * * *' for 9am daily]); " +
+    "list_reminders (args: operation='list_reminders'); " +
+    "pause_reminder (args: operation='pause_reminder', id=string [required, copy from list_reminders response]).";
   inputSchema = z.object({
     operation: z.enum(["now", "create_reminder", "list_reminders", "pause_reminder"]),
     name: z.string().optional().describe("Reminder name"),

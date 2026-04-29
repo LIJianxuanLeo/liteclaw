@@ -9,7 +9,10 @@ import { Tool } from "./_base.js";
 export class NotesTool extends Tool {
   name = "notes";
   description =
-    "Manage daily notes and journal. Operations: daily_note, append_journal, weekly_summary.";
+    "Manage daily notes and journal. Operations: " +
+    "daily_note (args: operation='daily_note', date=YYYY-MM-DD [optional, default today], returns the day's note); " +
+    "append_journal (args: operation='append_journal', text=string [required], date=YYYY-MM-DD [optional, default today], appends timestamped entry); " +
+    "weekly_summary (args: operation='weekly_summary', returns the past 7 days of notes).";
   inputSchema = z.object({
     operation: z.enum(["daily_note", "append_journal", "weekly_summary"]),
     text: z.string().optional().describe("Journal entry text"),

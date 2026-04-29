@@ -11,7 +11,10 @@ import type { Task } from "../core/types.js";
 export class TodoTool extends Tool {
   name = "todo";
   description =
-    "Manage tasks: add, list, or complete. Operations: add_task, list_tasks, complete_task.";
+    "Manage tasks. Operations: " +
+    "add_task (args: operation='add_task', text=string [required], priority='high'|'medium'|'low' [optional, default medium]); " +
+    "list_tasks (args: operation='list_tasks', filter='all'|'pending'|'done' [optional, default pending]); " +
+    "complete_task (args: operation='complete_task', id=string [required, copy from previous add/list response]).";
   inputSchema = z.object({
     operation: z.enum(["add_task", "list_tasks", "complete_task"]),
     text: z.string().optional().describe("Task description"),
