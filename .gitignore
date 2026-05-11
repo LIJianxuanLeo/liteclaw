@@ -8,5 +8,6 @@ whatsapp-auth/
 .DS_Store
 data.backup/
 
-# Documentation (kept local only)
-docs/
+# Documentation (kept local only, except the published tutorial)
+docs/*
+!docs/tutorial.md
