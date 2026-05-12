@@ -61,6 +61,26 @@ Scan the QR code with WhatsApp (Linked Devices → Link a Device). Once connecte
 
 For a complete walkthrough of every feature with example messages, see the bilingual [User Tutorial](docs/tutorial.md).
 
+### Encrypting the API Key (optional)
+
+If you don't want your `API_KEY` sitting in plaintext inside `.env`, you can store it as an AES-256-encrypted blob unlocked by a password at launch time.
+
+```bash
+# One-time: encrypt the key (you'll be prompted for the key + a password)
+./scripts/encrypt-api.sh
+
+# Remove the plain API_KEY=... line from .env afterwards
+
+# Start LiteClaw — prompts once for the password, then decrypts in memory
+./scripts/start.sh
+```
+
+How it works:
+
+1. `encrypt-api.sh` pipes your key directly into `openssl enc -aes-256-cbc -pbkdf2 -iter 200000` and writes the ciphertext to `.env.api.enc` (mode 600). The plaintext never touches disk.
+2. `start.sh` prompts for the password, decrypts to a shell variable, exports `API_KEY`, then `exec`s `npm start`. The dotenv loader sees the exported value and does not overwrite it.
+3. `.env.api.enc` is gitignored by default. If you want to commit it for cloud backup, that's safe — the password is the only secret — but use a strong password.
+
 ### LLM Providers
 
 | Provider | Default Model | Cost |
@@ -175,6 +195,26 @@ npm start
 打开 WhatsApp（已关联的设备 → 关联设备）扫描终端中显示的二维码。连接成功后，给自己发一条消息即可开始与 LiteClaw 对话。
 
 每个功能的完整使用示例见中英对照的[用户教程](docs/tutorial.md)。
+
+### 加密 API Key（可选）
+
+如果你不想让 `API_KEY` 明文躺在 `.env` 里，可以把它存成 AES-256 加密的密文，启动时输入密码解锁。
+
+```bash
+# 一次性：加密你的 key（会依次提示输入 key 和密码）
+./scripts/encrypt-api.sh
+
+# 然后把 .env 里的 API_KEY=... 那行删掉
+
+# 启动 LiteClaw —— 只在启动时提示一次密码，密钥在内存里解密
+./scripts/start.sh
+```
+
+实现原理：
+
+1. `encrypt-api.sh` 把 API Key 直接管道送进 `openssl enc -aes-256-cbc -pbkdf2 -iter 200000`，密文落到 `.env.api.enc`（权限 600）。**明文 key 全程不写盘**。
+2. `start.sh` 提示输入密码 → 解密到 shell 变量 → `export API_KEY` → `exec npm start`。dotenv 默认不覆盖已存在的环境变量，所以应用拿到的就是解密后的 key。
+3. `.env.api.enc` 默认在 `.gitignore` 里。如果你想把它提交到云端做备份也是安全的（前提是密码强度足够，200K 次 PBKDF2 迭代会让暴力破解非常昂贵）。
 
 ### LLM 提供商
 
